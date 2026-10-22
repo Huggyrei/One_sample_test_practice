@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quick Stats</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-0:      #f3f3f1;
+    --surface-1:      #fcfcfb;
+    --border:         #dddcd7;
+    --grid:           #e8e7e3;
+    --axis:           #b5b4ae;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #7a7975;
+    --series-1:       #2a78d6;
+    --series-1-soft:  rgba(42, 120, 214, 0.18);
+    --accent:         #2a78d6;
+    --good:           #0ca30c;
+    --critical:       #d03b3b;
+    --warning:        #b07a00;
+    --chip:           #eceae5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --surface-0:      #121211;
+      --surface-1:      #1a1a19;
+      --border:         #33332f;
+      --grid:           #2a2a27;
+      --axis:           #5c5b55;
+      --text-primary:   #f0efec;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #8e8d85;
+      --series-1:       #3987e5;
+      --series-1-soft:  rgba(57, 135, 229, 0.22);
+      --accent:         #3987e5;
+      --good:           #0ca30c;
+      --critical:       #e05555;
+      --warning:        #fab219;
+      --chip:           #2a2a27;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--surface-0);
+    color: var(--text-primary);
+  }
+  header { padding: 20px 28px 4px; }
+  header h1 { margin: 0; font-size: 22px; font-weight: 650; }
+  header p { margin: 2px 0 0; color: var(--text-secondary); }
+  main {
+    display: grid;
+    grid-template-columns: minmax(300px, 380px) 1fr;
+    gap: 20px;
+    padding: 16px 28px 40px;
+    align-items: start;
+  }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+  section.card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  section.card h2 {
+    margin: 0 0 12px;
+    font-size: 15px;
+    font-weight: 650;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .step {
+    display: inline-grid; place-items: center;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--accent); color: #fff; font-size: 12px; font-weight: 700;
+  }
+  .muted { color: var(--text-muted); }
+  .secondary { color: var(--text-secondary); }
+  .small { font-size: 12.5px; }
+
+  input[type=text], input[type=number], select {
+    font: inherit; color: var(--text-primary);
+    background: var(--surface-0);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 8px;
+  }
+  input[type=text] { width: 100%; }
+  input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button {
+    font: inherit; cursor: pointer;
+    border-radius: 6px; padding: 6px 12px;
+    border: 1px solid var(--border);
+    background: var(--surface-0); color: var(--text-primary);
+  }
+  button:hover:not(:disabled) { border-color: var(--axis); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button.danger { color: var(--critical); }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .row + .row { margin-top: 8px; }
+
+  #chips {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    margin-top: 12px; min-height: 34px; max-height: 260px; overflow: auto;
+    padding: 8px; border: 1px dashed var(--border); border-radius: 8px;
+  }
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--chip); border-radius: 999px;
+    padding: 1px 4px 1px 9px; font-variant-numeric: tabular-nums; font-size: 13px;
+  }
+  .chip button {
+    border: 0; background: transparent; padding: 0 5px; line-height: 1.2;
+    color: var(--text-muted); font-size: 14px;
+  }
+  .chip button:hover { color: var(--critical); }
+  #msg { min-height: 1.4em; margin-top: 6px; }
+  #msg.err { color: var(--critical); }
+
+  table.stats { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  table.stats td { padding: 4px 0; border-bottom: 1px solid var(--grid); }
+  table.stats td:first-child { color: var(--text-secondary); }
+  table.stats td:last-child { text-align: right; font-weight: 550; }
+  table.stats tr.sep td { border-bottom: 1px solid var(--axis); }
+
+  .charts { display: grid; grid-template-columns: 1fr; gap: 6px; }
+  .chart-title { font-weight: 600; margin: 4px 0 0; }
+  .chart-sub { margin: 0 0 4px; }
+  svg { display: block; width: 100%; height: auto; overflow: visible; }
+  svg text { fill: var(--text-secondary); font-size: 11px; font-family: inherit; }
+  .empty {
+    display: grid; place-items: center; height: 120px;
+    color: var(--text-muted); border: 1px dashed var(--border); border-radius: 8px;
+  }
+
+  #tip {
+    position: fixed; pointer-events: none; z-index: 10;
+    background: var(--surface-1); color: var(--text-primary);
+    border: 1px solid var(--border); border-radius: 6px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+    padding: 6px 9px; font-size: 12.5px; font-variant-numeric: tabular-nums;
+    display: none; white-space: nowrap;
+  }
+  #tip b { font-weight: 600; }
+
+  .result {
+    margin-top: 12px; padding: 12px 14px;
+    border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface-0);
+  }
+  .verdict { display: flex; gap: 8px; align-items: flex-start; font-weight: 600; margin-bottom: 6px; }
+  .verdict .icon {
+    flex: none; display: inline-grid; place-items: center;
+    width: 20px; height: 20px; border-radius: 50%; color: #fff; font-size: 12px; font-weight: 800;
+  }
+  .verdict.good .icon { background: var(--good); }
+  .verdict.bad .icon { background: var(--critical); }
+  .result table.stats { margin-top: 6px; }
+
+  fieldset { border: 0; margin: 0; padding: 0; }
+  fieldset:disabled { opacity: 0.5; }
+  .grid-form { display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; align-items: center; }
+  .methods { display: grid; gap: 8px; margin: 12px 0; }
+  .method {
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+  }
+  .method:has(input:checked) { border-color: var(--accent); background: var(--series-1-soft); }
+  .method input { margin-top: 3px; }
+  .badge {
+    display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
+    background: var(--good); color: #fff; vertical-align: 1px;
+  }
+  .note { margin-top: 8px; padding: 8px 10px; border-left: 3px solid var(--warning); background: var(--surface-0); }
+  .lock { margin: 0 0 10px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Quick Stats</h1>
+  <p>Enter a small sample (~35 values), review the summary and plots, check normality, then test the location.</p>
+</header>
+
+<main>
+  <div class="col">
+    <!-- 1. Data entry -->
+    <section class="card">
+      <h2><span class="step">1</span> Data</h2>
+      <label for="entry" class="small secondary">Type a value and press Enter — or paste many, separated by commas, spaces or new lines.</label>
+      <div class="row" style="margin-top:6px">
+        <input id="entry" type="text" placeholder="e.g. 12.4, 13.1, 11.8" autocomplete="off" style="flex:1">
+        <button id="addBtn" class="primary">Add</button>
+      </div>
+      <div id="msg" class="small"></div>
+      <div class="row">
+        <button id="exNormal" class="small">Example: symmetric</button>
+        <button id="exSkew" class="small">Example: skewed</button>
+        <span style="flex:1"></span>
+        <button id="resetBtn" class="danger">Reset</button>
+      </div>
+      <div id="chips" aria-live="polite"></div>
+      <div class="row small secondary" style="margin-top:6px">
+        <span id="count">n = 0</span>
+      </div>
+    </section>
+
+    <!-- 2. Summary statistics -->
+    <section class="card">
+      <h2><span class="step">2</span> Summary statistics</h2>
+      <div id="summary"><div class="empty">Add at least 2 values</div></div>
+    </section>
+  </div>
+
+  <div class="col">
+    <!-- 3. Plots -->
+    <section class="card">
+      <h2><span class="step">3</span> Distribution</h2>
+      <div class="charts">
+        <div>
+          <p class="chart-title">Box plot</p>
+          <p class="chart-sub small muted">Box = Q1–Q3, line = median, ◆ = mean, whiskers to the furthest point within 1.5 × IQR, circles = outliers</p>
+          <div id="boxplot"><div class="empty">No data</div></div>
+        </div>
+        <div style="margin-top:14px">
+          <div class="row" style="justify-content:space-between">
+            <p class="chart-title">Histogram</p>
+            <div class="row small secondary">
+              <label>Bins
+                <input id="bins" type="number" min="1" max="50" style="width:64px; margin-left:4px" disabled>
+              </label>
+              <button id="binsAuto" class="small" title="Sturges' rule" disabled>Auto</button>
+              <label style="margin-left:10px"><input id="fixedW" type="checkbox" checked> Fixed width</label>
+              <input id="binWidth" type="number" min="0" step="any" value="5" style="width:72px" aria-label="Bin width">
+            </div>
+          </div>
+          <p id="histSub" class="chart-sub small muted"></p>
+          <div id="hist"><div class="empty">No data</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. Normality -->
+    <section class="card">
+      <h2><span class="step">4</span> Normality — Shapiro–Wilk test</h2>
+      <div class="row">
+        <button id="swBtn" class="primary">Run Shapiro–Wilk</button>
+      </div>
+      <p class="small muted" style="margin:8px 0 0">H₀: the data come from a normal distribution. Requires 3 ≤ n ≤ 5000.</p>
+      <div id="swOut"></div>
+    </section>
+
+    <!-- 5. Location test -->
+    <section class="card">
+      <h2><span class="step">5</span> One-sample location test</h2>
+      <p id="lockMsg" class="lock small muted">Run the Shapiro–Wilk test first.</p>
+      <fieldset id="testFs" disabled>
+        <div class="grid-form">
+          <label for="mu0" class="secondary">Hypothesised value (μ₀)</label>
+          <input id="mu0" type="number" step="any" value="0" style="width:140px">
+          <label for="alt" class="secondary">Alternative H₁</label>
+          <select id="alt" style="width:fit-content">
+            <option value="two.sided">two-sided: location ≠ μ₀</option>
+            <option value="greater">greater: location &gt; μ₀</option>
+            <option value="less">less: location &lt; μ₀</option>
+          </select>
+        </div>
+        <div class="methods" role="radiogroup" aria-label="Test method">
+          <label class="method">
+            <input type="radio" name="method" value="t">
+            <span>
+              <b>One-sample t-test</b><br>
+              <span class="small secondary">Parametric. Tests the mean. Assumes the data are approximately normal.</span>
+            </span>
+          </label>
+          <label class="method">
+            <input type="radio" name="method" value="w">
+            <span>
+              <b>Wilcoxon signed-rank test</b><br>
+              <span class="small secondary">Non-parametric. Tests the median (pseudo-median). Assumes a symmetric distribution, not normality.</span>
+            </span>
+          </label>
+        </div>
+        <div id="methodNote"></div>
+        <button id="testBtn" class="primary" style="margin-top:10px">Run test</button>
+      </fieldset>
+      <div id="testOut"></div>
+    </section>
+  </div>
+</main>
+
+<div id="tip" role="tooltip"></div>
+
+<!-- ======================= Statistics library ======================= -->
+<script id="stats-lib">
+const Stats = (() => {
+  // ---- Special functions ----
+  function lgamma(x) {
+    const c = [0.99999999999980993, 676.5203681218851, -1259.1392167224028,
+      771.32342877765313, -176.61502916214059, 12.507343278686905,
+      -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+    if (x < 0.5) return Math.log(Math.PI / Math.abs(Math.sin(Math.PI * x))) - lgamma(1 - x);
+    x -= 1;
+    let a = c[0];
+    const t = x + 7.5;
+    for (let i = 1; i < 9; i++) a += c[i] / (x + i);
+    return 0.5 * Math.log(2 * Math.PI) + (x + 0.5) * Math.log(t) - t + Math.log(a);
+  }
+
+  // Continued fraction for the incomplete beta function (Numerical Recipes)
+  function betacf(a, b, x) {
+    const MAXIT = 500, EPS = 1e-15, FPMIN = 1e-300;
+    const qab = a + b, qap = a + 1, qam = a - 1;
+    let c = 1, d = 1 - qab * x / qap;
+    if (Math.abs(d) < FPMIN) d = FPMIN;
+    d = 1 / d;
+    let h = d;
+    for (let m = 1; m <= MAXIT; m++) {
+      const m2 = 2 * m;
+      let aa = m * (b - m) * x / ((qam + m2) * (a + m2));
+      d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+      c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+      d = 1 / d; h *= d * c;
+      aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
+      d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+      c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+      d = 1 / d;
+      const del = d * c;
+      h *= del;
+      if (Math.abs(del - 1) < EPS) break;
+    }
+    return h;
+  }
+
+  // Regularised incomplete beta I_x(a, b)
+  function ibeta(x, a, b) {
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    const bt = Math.exp(lgamma(a + b) - lgamma(a) - lgamma(b) + a * Math.log(x) + b * Math.log(1 - x));
+    return x < (a + 1) / (a + b + 2)
+      ? bt * betacf(a, b, x) / a
+      : 1 - bt * betacf(b, a, 1 - x) / b;
+  }
+
+  // Complementary error function (Numerical Recipes erfcc, rel. error < 1.2e-7)
+  function erfc(x) {
+    const z = Math.abs(x);
+    const t = 1 / (1 + 0.5 * z);
+    const r = t * Math.exp(-z * z - 1.26551223 + t * (1.00002368 + t * (0.37409196 +
+      t * (0.09678418 + t * (-0.18628806 + t * (0.27886807 + t * (-1.13520398 +
+      t * (1.48851587 + t * (-0.82215223 + t * 0.17087277)))))))));
+    return x >= 0 ? r : 2 - r;
+  }
+
+  // Standard normal CDF
+  function pnorm(z) { return 0.5 * erfc(-z / Math.SQRT2); }
+
+  // Standard normal quantile (Acklam, rel. error < 1.15e-9)
+  function qnorm(p) {
+    if (p <= 0) return -Infinity;
+    if (p >= 1) return Infinity;
+    const a = [-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02,
+      1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00];
+    const b = [-5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02,
+      6.680131188771972e+01, -1.328068155288572e+01];
+    const c = [-7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00,
+      -2.549732539343734e+00, 4.374664141464968e+00, 2.938163982698783e+00];
+    const d = [7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e+00,
+      3.754408661907416e+00];
+    const plow = 0.02425, phigh = 1 - plow;
+    let q, r;
+    if (p < plow) {
+      q = Math.sqrt(-2 * Math.log(p));
+      return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) /
+        ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1);
+    }
+    if (p <= phigh) {
+      q = p - 0.5; r = q * q;
+      return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q /
+        (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
+    }
+    q = Math.sqrt(-2 * Math.log(1 - p));
+    return -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) /
+      ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1);
+  }
+
+  // Student t CDF, P(T <= t)
+  function pt(t, df) {
+    const tail = 0.5 * ibeta(df / (df + t * t), df / 2, 0.5);
+    return t > 0 ? 1 - tail : tail;
+  }
+
+  // Student t quantile by bisection
+  function qt(p, df) {
+    let lo = -1, hi = 1;
+    while (pt(lo, df) > p) lo *= 2;
+    while (pt(hi, df) < p) hi *= 2;
+    for (let i = 0; i < 200; i++) {
+      const mid = (lo + hi) / 2;
+      if (pt(mid, df) < p) lo = mid; else hi = mid;
+    }
+    return (lo + hi) / 2;
+  }
+
+  // ---- Descriptive ----
+  const sum = xs => xs.reduce((s, v) => s + v, 0);
+  const sorted = xs => [...xs].sort((a, b) => a - b);
+
+  // R type-7 quantile on sorted data
+  function quantile(s, p) {
+    const h = (s.length - 1) * p;
+    const lo = Math.floor(h);
+    return lo + 1 < s.length ? s[lo] + (h - lo) * (s[lo + 1] - s[lo]) : s[lo];
+  }
+
+  function median(xs) { return quantile(sorted(xs), 0.5); }
+
+  function describe(xs) {
+    const n = xs.length;
+    const s = sorted(xs);
+    const mean = sum(xs) / n;
+    let m2 = 0, m3 = 0, m4 = 0;
+    for (const v of xs) {
+      const d = v - mean;
+      m2 += d * d; m3 += d * d * d; m4 += d * d * d * d;
+    }
+    m2 /= n; m3 /= n; m4 /= n;
+    const variance = n > 1 ? m2 * n / (n - 1) : NaN;
+    const sd = Math.sqrt(variance);
+    // Sample-adjusted (bias-corrected) skewness G1 and excess kurtosis G2,
+    // matching Excel SKEW/KURT, SPSS and SAS.
+    const g1 = m3 / Math.pow(m2, 1.5);
+    const g2 = m4 / (m2 * m2) - 3;
+    const skew = n > 2 && m2 > 0 ? g1 * Math.sqrt(n * (n - 1)) / (n - 2) : NaN;
+    const kurt = n > 3 && m2 > 0 ? ((n + 1) * g2 + 6) * (n - 1) / ((n - 2) * (n - 3)) : NaN;
+    const seSkew = n > 2 ? Math.sqrt(6 * n * (n - 1) / ((n - 2) * (n + 1) * (n + 3))) : NaN;
+    const seKurt = n > 3 ? 2 * seSkew * Math.sqrt((n * n - 1) / ((n - 3) * (n + 5))) : NaN;
+    const q1 = quantile(s, 0.25), med = quantile(s, 0.5), q3 = quantile(s, 0.75);
+    return {
+      n, mean, variance, sd, sem: sd / Math.sqrt(n),
+      skew, kurt, seSkew, seKurt,
+      min: s[0], q1, median: med, q3, max: s[n - 1], iqr: q3 - q1, range: s[n - 1] - s[0],
+      sorted: s,
+    };
+  }
+
+  // Tukey box-plot geometry
+  function boxplot(xs) {
+    const d = describe(xs);
+    const loFence = d.q1 - 1.5 * d.iqr, hiFence = d.q3 + 1.5 * d.iqr;
+    const inside = d.sorted.filter(v => v >= loFence && v <= hiFence);
+    return {
+      ...d,
+      whiskerLo: inside[0], whiskerHi: inside[inside.length - 1],
+      outliers: d.sorted.filter(v => v < loFence || v > hiFence),
+    };
+  }
+
+  // ---- Shapiro–Wilk (Royston 1995, Algorithm AS R94 — port of R's swilk.c) ----
+  function poly(cc, x) {
+    let r = 0;
+    for (let i = cc.length - 1; i >= 0; i--) r = r * x + cc[i];
+    return r;
+  }
+
+  function shapiroWilk(xs) {
+    const x = sorted(xs);
+    const n = x.length;
+    if (n < 3) throw new Error('Shapiro–Wilk needs at least 3 values.');
+    if (n > 5000) throw new Error('Shapiro–Wilk supports at most 5000 values.');
+    const range = x[n - 1] - x[0];
+    if (range < 1e-19) throw new Error('All values are identical — Shapiro–Wilk is undefined.');
+
+    const nn2 = Math.floor(n / 2);
+    const a = new Array(nn2 + 1); // 1-indexed
+    const g = [-2.273, 0.459];
+    const c1 = [0, 0.221157, -0.147981, -2.07119, 4.434685, -2.706056];
+    const c2 = [0, 0.042981, -0.293762, -1.752461, 5.682633, -3.582633];
+    const c3 = [0.544, -0.39978, 0.025054, -6.714e-4];
+    const c4 = [1.3822, -0.77857, 0.062767, -0.0020322];
+    const c5 = [-1.5861, -0.31082, -0.083751, 0.0038915];
+    const c6 = [-0.4803, -0.082676, 0.0030302];
+
+    if (n === 3) {
+      a[1] = Math.SQRT1_2;
+    } else {
+      const an25 = n + 0.25;
+      const m = new Array(nn2 + 1);
+      let summ2 = 0;
+      for (let i = 1; i <= nn2; i++) {
+        m[i] = qnorm((i - 0.375) / an25);
+        summ2 += m[i] * m[i];
+      }
+      summ2 *= 2;
+      const ssumm2 = Math.sqrt(summ2);
+      const rsn = 1 / Math.sqrt(n);
+      const a1 = poly(c1, rsn) - m[1] / ssumm2;
+      let i1, fac;
+      if (n > 5) {
+        i1 = 3;
+        const a2 = -m[2] / ssumm2 + poly(c2, rsn);
+        fac = Math.sqrt((summ2 - 2 * m[1] * m[1] - 2 * m[2] * m[2]) / (1 - 2 * a1 * a1 - 2 * a2 * a2));
+        a[2] = a2;
+      } else {
+        i1 = 2;
+        fac = Math.sqrt((summ2 - 2 * m[1] * m[1]) / (1 - 2 * a1 * a1));
+      }
+      a[1] = a1;
+      for (let i = i1; i <= nn2; i++) a[i] = -m[i] / fac;
+    }
+
+    // W statistic (computed on range-scaled data for numerical stability)
+    const xs2 = x.map(v => v / range);
+    const mean = sum(xs2) / n;
+    let ssq = 0;
+    for (const v of xs2) ssq += (v - mean) * (v - mean);
+    let num = 0;
+    for (let i = 1; i <= nn2; i++) num += a[i] * (xs2[n - i] - xs2[i - 1]);
+    let w = (num * num) / ssq;
+    if (w > 1) w = 1;
+
+    // p-value
+    let p;
+    if (n === 3) {
+      const pi6 = 6 / Math.PI, stqr = Math.PI / 3;
+      p = Math.max(0, pi6 * (Math.asin(Math.sqrt(w)) - stqr));
+    } else {
+      const w1 = 1 - w;
+      let y = Math.log(w1);
+      const lxx = Math.log(n);
+      let m, s;
+      if (n <= 11) {
+        const gamma = poly(g, n);
+        if (y >= gamma) return { w, p: 1e-99, n };
+        y = -Math.log(gamma - y);
+        m = poly(c3, n);
+        s = Math.exp(poly(c4, n));
+      } else {
+        m = poly(c5, lxx);
+        s = Math.exp(poly(c6, lxx));
+      }
+      p = pnorm(-(y - m) / s);
+    }
+    return { w, p, n };
+  }
+
+  // ---- One-sample t-test ----
+  function tTest(xs, mu0, alternative, alpha) {
+    const n = xs.length;
+    if (n < 2) throw new Error('The t-test needs at least 2 values.');
+    const d = describe(xs);
+    if (!(d.sd > 0)) throw new Error('Standard deviation is zero — the t statistic is undefined.');
+    const df = n - 1;
+    const se = d.sd / Math.sqrt(n);
+    const t = (d.mean - mu0) / se;
+    let p, ci;
+    if (alternative === 'less') {
+      p = pt(t, df);
+      ci = [-Infinity, d.mean + qt(1 - alpha, df) * se];
+    } else if (alternative === 'greater') {
+      p = pt(-t, df);
+      ci = [d.mean - qt(1 - alpha, df) * se, Infinity];
+    } else {
+      p = Math.min(1, 2 * pt(-Math.abs(t), df));
+      const tc = qt(1 - alpha / 2, df);
+      ci = [d.mean - tc * se, d.mean + tc * se];
+    }
+    return { t, df, p, mean: d.mean, se, ci, cohenD: (d.mean - mu0) / d.sd, n };
+  }
+
+  // Average ranks (ties share the mean rank)
+  function rank(vals) {
+    const idx = vals.map((v, i) => i).sort((i, j) => vals[i] - vals[j]);
+    const r = new Array(vals.length);
+    const tieSizes = [];
+    for (let i = 0; i < idx.length;) {
+      let j = i;
+      while (j + 1 < idx.length && vals[idx[j + 1]] === vals[idx[i]]) j++;
+      const avg = (i + j + 2) / 2;
+      for (let k = i; k <= j; k++) r[idx[k]] = avg;
+      if (j > i) tieSizes.push(j - i + 1);
+      i = j + 1;
+    }
+    return { ranks: r, tieSizes };
+  }
+
+  // ---- Wilcoxon signed-rank test (mirrors R's wilcox.test defaults) ----
+  function wilcoxon(xs, mu0, alternative) {
+    const diffsAll = xs.map(v => v - mu0);
+    const diffs = diffsAll.filter(d => d !== 0);
+    const zeros = diffsAll.length - diffs.length;
+    const n = diffs.length;
+    if (n < 1) throw new Error('All values equal μ₀ — nothing to test.');
+    const { ranks, tieSizes } = rank(diffs.map(Math.abs));
+    let V = 0;
+    diffs.forEach((d, i) => { if (d > 0) V += ranks[i]; });
+    const ties = tieSizes.length > 0;
+    const maxSum = n * (n + 1) / 2;
+
+    // Hodges–Lehmann estimate: median of Walsh averages
+    const walsh = [];
+    for (let i = 0; i < n; i++) for (let j = i; j < n; j++) walsh.push((diffs[i] + diffs[j]) / 2);
+    const hl = median(walsh) + mu0;
+
+    // Normal approximation quantities (also used for effect size)
+    const tieAdj = tieSizes.reduce((s, t) => s + (t * t * t - t), 0) / 48;
+    const sigma = Math.sqrt(n * (n + 1) * (2 * n + 1) / 24 - tieAdj);
+    const zRaw = (V - n * (n + 1) / 4) / sigma;
+
+    let p, method, z = null;
+    if (n < 50 && !ties && zeros === 0) {
+      // Exact null distribution of V by dynamic programming
+      const counts = new Float64Array(maxSum + 1);
+      counts[0] = 1;
+      for (let k = 1; k <= n; k++)
+        for (let s = maxSum; s >= k; s--) counts[s] += counts[s - k];
+      const total = Math.pow(2, n);
+      const cdf = v => { let c = 0; for (let s = 0; s <= Math.min(v, maxSum); s++) c += counts[s]; return c / total; };
+      const sf = v => 1 - cdf(v - 1); // P(V >= v)
+      if (alternative === 'less') p = cdf(V);
+      else if (alternative === 'greater') p = sf(V);
+      else p = Math.min(1, 2 * (V > maxSum / 2 ? sf(V) : cdf(V)));
+      method = 'Exact';
+    } else {
+      let zc = V - n * (n + 1) / 4;
+      const correct = alternative === 'two.sided' ? Math.sign(zc) * 0.5 : alternative === 'greater' ? 0.5 : -0.5;
+      z = (zc - correct) / sigma;
+      if (alternative === 'less') p = pnorm(z);
+      else if (alternative === 'greater') p = pnorm(-z);
+      else p = Math.min(1, 2 * Math.min(pnorm(z), pnorm(-z)));
+      method = 'Normal approximation with continuity correction';
+    }
+    return {
+      V, Vminus: maxSum - V, p, method, z, n, zeros, ties,
+      hl, r: Math.abs(zRaw) / Math.sqrt(n), median: median(xs),
+    };
+  }
+
+  return { describe, boxplot, shapiroWilk, tTest, wilcoxon, pnorm, qnorm, pt, qt, median };
+})();
+</script>
+
+<!-- ======================= App ======================= -->
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const data = [];
+  let swResult = null;
+  let binsManual = false;
+
+  const EX_SYMMETRIC = [50.8, 60.0, 42.5, 57.9, 47.9, 47.9, 65.2, 51.3, 49.7, 55.8, 59.0, 49.8,
+    54.7, 42.2, 47.1, 46.5, 39.3, 37.9, 37.0, 48.1, 48.6, 47.4, 50.6, 39.3, 49.4, 51.9, 56.0,
+    43.2, 46.8, 33.9, 46.0, 32.4, 38.6, 58.8, 32.4];
+  const EX_SKEWED = [32.7, 10.3, 4.9, 7.8, 12.7, 9.9, 6.1, 13.4, 29.3, 24.7, 37.7, 11.0, 19.6,
+    15.3, 14.5, 11.4, 21.8, 17.7, 9.2, 9.0, 23.1, 14.2, 12.6, 3.4, 50.2, 15.8, 8.5, 26.5, 7.3,
+    5.5, 6.9, 11.7, 18.5, 16.9, 20.3];
+
+  // ---------- Formatting ----------
+  function fmt(v, dp = 4) {
+    if (v === Infinity) return '∞';
+    if (v === -Infinity) return '−∞';
+    if (!Number.isFinite(v)) return '—';
+    const a = Math.abs(v);
+    if (a !== 0 && (a >= 1e6 || a < 1e-4)) return v.toExponential(3).replace('-', '−');
+    return v.toFixed(dp).replace(/^-/, '−');
+  }
+  function fmtP(p) {
+    if (p < 0.0001) return '< 0.0001';
+    return p.toFixed(4);
+  }
+  function fmtTick(v, step) {
+    const dp = Math.max(0, -Math.floor(Math.log10(step) + 1e-9));
+    return v.toFixed(dp).replace(/^-/, '−');
+  }
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  // ---------- Data entry ----------
+  function parseValues(text) {
+    const tokens = text.split(/[\s,;]+/).filter(Boolean);
+    const good = [], bad = [];
+    for (const t of tokens) {
+      const v = Number(t);
+      if (t !== '' && Number.isFinite(v)) good.push(v); else bad.push(t);
+    }
+    return { good, bad };
+  }
+
+  function setMsg(text, isErr = false) {
+    $('msg').textContent = text;
+    $('msg').className = 'small' + (isErr ? ' err' : ' muted');
+  }
+
+  function addFromEntry() {
+    const { good, bad } = parseValues($('entry').value);
+    if (!good.length && !bad.length) return;
+    data.push(...good);
+    $('entry').value = '';
+    if (bad.length) setMsg(`Ignored non-numeric: ${bad.slice(0, 5).join(', ')}${bad.length > 5 ? '…' : ''}`, true);
+    else setMsg(good.length === 1 ? `Added ${fmtNum(good[0])}` : `Added ${good.length} values`);
+    onDataChange();
+    $('entry').focus();
+  }
+  const fmtNum = v => String(v).replace(/^-/, '−');
+
+  function loadData(values, label) {
+    data.length = 0;
+    data.push(...values);
+    setMsg(`Loaded ${label} (${values.length} values)`);
+    onDataChange();
+  }
+
+  function reset() {
+    data.length = 0;
+    $('entry').value = '';
+    $('mu0').value = '0';
+    $('alt').value = 'two.sided';
+    binsManual = false;
+    $('fixedW').checked = true;
+    $('binWidth').value = '5';
+    syncBinControls();
+    setMsg('Data cleared');
+    onDataChange();
+    $('entry').focus();
+  }
+
+  function renderChips() {
+    const box = $('chips');
+    if (!data.length) {
+      box.innerHTML = '<span class="small muted">No values yet</span>';
+    } else {
+      box.innerHTML = data.map((v, i) =>
+        `<span class="chip">${esc(fmtNum(v))}<button data-i="${i}" aria-label="Remove ${esc(v)}" title="Remove">×</button></span>`
+      ).join('');
+    }
+    const n = data.length;
+    $('count').textContent = `n = ${n}` + (n && n < 35 ? `  ·  ${35 - n} more to reach ~35` : '');
+  }
+
+  $('chips').addEventListener('click', e => {
+    const b = e.target.closest('button[data-i]');
+    if (!b) return;
+    const [v] = data.splice(Number(b.dataset.i), 1);
+    setMsg(`Removed ${fmtNum(v)}`);
+    onDataChange();
+  });
+
+  // ---------- Summary ----------
+  function renderSummary() {
+    const el = $('summary');
+    if (data.length < 2) { el.innerHTML = '<div class="empty">Add at least 2 values</div>'; return; }
+    const d = Stats.describe(data);
+    const rows = [
+      ['n', d.n],
+      ['Mean', fmt(d.mean)],
+      ['Variance (sample, n−1)', fmt(d.variance)],
+      ['Standard deviation', fmt(d.sd)],
+      ['Standard error of mean', fmt(d.sem), 'sep'],
+      ['Skewness', fmt(d.skew) + (Number.isFinite(d.seSkew) ? ` <span class="muted small">± ${fmt(d.seSkew, 3)}</span>` : '')],
+      ['Excess kurtosis', fmt(d.kurt) + (Number.isFinite(d.seKurt) ? ` <span class="muted small">± ${fmt(d.seKurt, 3)}</span>` : ''), 'sep'],
+      ['Minimum', fmt(d.min)],
+      ['Q1 (25th percentile)', fmt(d.q1)],
+      ['Median', fmt(d.median)],
+      ['Q3 (75th percentile)', fmt(d.q3)],
+      ['Maximum', fmt(d.max)],
+      ['IQR', fmt(d.iqr)],
+      ['Range', fmt(d.range)],
+    ];
+    el.innerHTML = `<table class="stats">${rows.map(([k, v, cls]) =>
+      `<tr${cls ? ` class="${cls}"` : ''}><td>${k}</td><td>${v}</td></tr>`).join('')}</table>
+      <p class="small muted" style="margin:8px 0 0">Skewness and kurtosis are the bias-adjusted sample estimates (G₁, G₂ — as in Excel/SPSS), shown ± standard error. Quartiles use linear interpolation (R type 7).</p>`;
+  }
+
+  // ---------- Charts ----------
+  const W = 720, ML = 44, MR = 16;
+  const svgNS = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs = {}, parent) {
+    const e = document.createElementNS(svgNS, tag);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
+  function niceScale(lo, hi, count = 7) {
+    if (lo === hi) { const pad = Math.abs(lo) * 0.1 || 1; lo -= pad; hi += pad; }
+    const raw = (hi - lo) / count;
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const f = raw / mag;
+    const step = (f >= 7.5 ? 10 : f >= 3.5 ? 5 : f >= 1.5 ? 2 : 1) * mag;
+    const start = Math.floor(lo / step + 1e-9) * step;
+    const end = Math.ceil(hi / step - 1e-9) * step;
+    const ticks = [];
+    for (let v = start; v <= end + step * 1e-6; v += step) ticks.push(Math.round(v / step) * step);
+    return { lo: start, hi: end, step, ticks };
+  }
+
+  function xScaleFor(values) {
+    const s = niceScale(Math.min(...values), Math.max(...values));
+    const x = v => ML + (v - s.lo) / (s.hi - s.lo) * (W - ML - MR);
+    return { ...s, x };
+  }
+
+  function drawXAxis(svg, sc, y, gridTop) {
+    for (const t of sc.ticks) {
+      const px = sc.x(t);
+      if (gridTop != null) el('line', { x1: px, x2: px, y1: gridTop, y2: y, stroke: 'var(--grid)' }, svg);
+      el('line', { x1: px, x2: px, y1: y, y2: y + 4, stroke: 'var(--axis)' }, svg);
+      const tx = el('text', { x: px, y: y + 17, 'text-anchor': 'middle' }, svg);
+      tx.textContent = fmtTick(t, sc.step);
+    }
+    el('line', { x1: ML, x2: W - MR, y1: y, y2: y, stroke: 'var(--axis)' }, svg);
+  }
+
+  // Tooltip
+  const tip = $('tip');
+  function bindTip(node, html) {
+    node.style.cursor = 'default';
+    node.addEventListener('mouseenter', () => { tip.innerHTML = html; tip.style.display = 'block'; });
+    node.addEventListener('mousemove', e => {
+      const r = tip.getBoundingClientRect();
+      let x = e.clientX + 14, y = e.clientY + 14;
+      if (x + r.width > innerWidth - 8) x = e.clientX - r.width - 14;
+      if (y + r.height > innerHeight - 8) y = e.clientY - r.height - 14;
+      tip.style.left = x + 'px'; tip.style.top = y + 'px';
+    });
+    node.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+  }
+
+  function renderBoxplot(sc) {
+    const host = $('boxplot');
+    if (data.length < 2) { host.innerHTML = '<div class="empty">Add at least 2 values</div>'; return; }
+    const b = Stats.boxplot(data);
+    const H = 130, cy = 50, bh = 46;
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img',
+      'aria-label': `Box plot: median ${fmt(b.median)}, Q1 ${fmt(b.q1)}, Q3 ${fmt(b.q3)}, ${b.outliers.length} outliers` });
+    drawXAxis(svg, sc, 100, 8);
+    const x = sc.x;
+    const stroke = 'var(--series-1)';
+    // whiskers
+    el('line', { x1: x(b.whiskerLo), x2: x(b.q1), y1: cy, y2: cy, stroke, 'stroke-width': 2 }, svg);
+    el('line', { x1: x(b.q3), x2: x(b.whiskerHi), y1: cy, y2: cy, stroke, 'stroke-width': 2 }, svg);
+    el('line', { x1: x(b.whiskerLo), x2: x(b.whiskerLo), y1: cy - bh / 4, y2: cy + bh / 4, stroke, 'stroke-width': 2 }, svg);
+    el('line', { x1: x(b.whiskerHi), x2: x(b.whiskerHi), y1: cy - bh / 4, y2: cy + bh / 4, stroke, 'stroke-width': 2 }, svg);
+    // box
+    const box = el('rect', { x: x(b.q1), y: cy - bh / 2, width: Math.max(1, x(b.q3) - x(b.q1)), height: bh,
+      rx: 4, fill: 'var(--series-1-soft)', stroke, 'stroke-width': 2 }, svg);
+    el('line', { x1: x(b.median), x2: x(b.median), y1: cy - bh / 2, y2: cy + bh / 2, stroke, 'stroke-width': 3 }, svg);
+    // mean diamond
+    const mx = x(b.mean), r = 5;
+    el('path', { d: `M${mx},${cy - r} L${mx + r},${cy} L${mx},${cy + r} L${mx - r},${cy} Z`,
+      fill: 'var(--surface-1)', stroke: 'var(--text-primary)', 'stroke-width': 1.5 }, svg);
+    // hover target covering the box + whiskers
+    const hit = el('rect', { x: x(b.whiskerLo) - 6, y: cy - bh / 2 - 6, width: x(b.whiskerHi) - x(b.whiskerLo) + 12,
+      height: bh + 12, fill: 'transparent' }, svg);
+    bindTip(hit, `<b>Five-number summary</b><br>
+      Upper whisker: ${fmt(b.whiskerHi)}<br>Q3: ${fmt(b.q3)}<br>Median: ${fmt(b.median)}<br>
+      Q1: ${fmt(b.q1)}<br>Lower whisker: ${fmt(b.whiskerLo)}<br>Mean (◆): ${fmt(b.mean)}<br>IQR: ${fmt(b.iqr)}`);
+    // outliers (stack duplicates vertically)
+    const seen = new Map();
+    for (const v of b.outliers) {
+      const k = seen.get(v) || 0; seen.set(v, k + 1);
+      const oy = cy - k * 10;
+      el('circle', { cx: x(v), cy: oy, r: 4.5, fill: 'var(--surface-1)', stroke, 'stroke-width': 2 }, svg);
+      const oh = el('circle', { cx: x(v), cy: oy, r: 10, fill: 'transparent' }, svg);
+      bindTip(oh, `<b>Outlier</b><br>${fmt(v)}`);
+    }
+    host.replaceChildren(svg);
+  }
+
+  function sturges(n) { return Math.max(1, Math.ceil(Math.log2(n) + 1)); }
+
+  const MAX_FIXED_BINS = 200;
+
+  // Bin the data. Auto mode: k equal bins spanning min..max, intervals [a, b) with the
+  // last closed. Fixed mode: bins of the given width whose top edge is the maximum,
+  // intervals (a, b] with the first closed, so the highest value sits on a bin edge.
+  function computeBins() {
+    const lo = Math.min(...data), hi = Math.max(...data);
+    if (!binsManual) $('bins').value = sturges(data.length);
+    if ($('fixedW').checked) {
+      const w = Number($('binWidth').value);
+      if (!(w > 0)) return { error: 'Enter a bin width greater than 0' };
+      const k = Math.max(1, Math.ceil((hi - lo) / w - 1e-9));
+      if (k > MAX_FIXED_BINS) return { error: `Bin width too small — would need ${k} bins (max ${MAX_FIXED_BINS})` };
+      const edges = Array.from({ length: k + 1 }, (_, i) => hi - (k - i) * w);
+      const counts = new Array(k).fill(0);
+      for (const v of data) counts[Math.max(0, k - 1 - Math.floor((hi - v) / w + 1e-9))]++;
+      const label = i => `${i === 0 ? '[' : '('}${fmt(edges[i])}, ${fmt(edges[i + 1])}]`;
+      return { edges, counts, label, desc: `${k} bin${k > 1 ? 's' : ''} of width ${fmtNum(w)}, aligned so the top bin ends at the maximum (${fmt(hi)}) · intervals (a, b]` };
+    }
+    const k = Math.max(1, Math.min(50, Math.round(Number($('bins').value) || sturges(data.length))));
+    const width = (hi - lo) / k;
+    const edges = hi === lo ? [lo - 0.5, lo + 0.5] : Array.from({ length: k + 1 }, (_, i) => lo + i * width);
+    const counts = new Array(edges.length - 1).fill(0);
+    for (const v of data) counts[hi === lo ? 0 : Math.min(k - 1, Math.floor((v - lo) / width))]++;
+    const label = i => `[${fmt(edges[i])}, ${fmt(edges[i + 1])}${i === counts.length - 1 ? ']' : ')'}`;
+    return { edges, counts, label, desc: `${counts.length} equal bin${counts.length > 1 ? 's' : ''} from minimum to maximum${binsManual ? '' : " (Sturges' rule)"} · intervals [a, b)` };
+  }
+
+  function renderHist(sc, bins) {
+    const host = $('hist');
+    $('histSub').textContent = bins && !bins.error ? bins.desc : '';
+    if (data.length < 2) { host.innerHTML = '<div class="empty">Add at least 2 values</div>'; return; }
+    if (bins.error) { host.innerHTML = `<div class="empty">${esc(bins.error)}</div>`; return; }
+    const { edges, counts } = bins;
+    const k = counts.length;
+
+    const H = 260, top = 12, base = 220;
+    const maxC = Math.max(...counts);
+    const yStep = Math.max(1, Math.ceil(maxC / 5));
+    const yMax = Math.ceil(maxC / yStep) * yStep;
+    const y = c => base - c / yMax * (base - top);
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `Histogram with ${k} bins` });
+
+    for (let c = 0; c <= yMax; c += yStep) {
+      el('line', { x1: ML, x2: W - MR, y1: y(c), y2: y(c), stroke: 'var(--grid)' }, svg);
+      const t = el('text', { x: ML - 8, y: y(c) + 4, 'text-anchor': 'end' }, svg);
+      t.textContent = c;
+    }
+    const yl = el('text', { x: 12, y: (top + base) / 2, 'text-anchor': 'middle',
+      transform: `rotate(-90 12 ${(top + base) / 2})` }, svg);
+    yl.textContent = 'Count';
+    drawXAxis(svg, sc, base, null);
+
+    const gap = 2, r = 4;
+    counts.forEach((c, i) => {
+      const a = edges[i], bEdge = edges[i + 1];
+      const x0 = sc.x(a) + gap / 2, x1 = sc.x(bEdge) - gap / 2;
+      const w = Math.max(1, x1 - x0);
+      if (c > 0) {
+        const yt = y(c), rr = Math.min(r, w / 2, base - yt);
+        el('path', {
+          d: `M${x0},${base} V${yt + rr} Q${x0},${yt} ${x0 + rr},${yt} H${x0 + w - rr} Q${x0 + w},${yt} ${x0 + w},${yt + rr} V${base} Z`,
+          fill: 'var(--series-1)',
+        }, svg);
+      }
+      const hit = el('rect', { x: sc.x(a), y: top, width: Math.max(1, sc.x(bEdge) - sc.x(a)), height: base - top, fill: 'transparent' }, svg);
+      bindTip(hit, `<b>${bins.label(i)}</b><br>Count: ${c} (${(100 * c / data.length).toFixed(1)}%)`);
+    });
+    host.replaceChildren(svg);
+  }
+
+  function renderCharts() {
+    if (data.length < 2) { renderBoxplot(); renderHist(); return; }
+    const bins = computeBins();
+    // Separate x-scales: the box plot fits the data, the histogram fits its bin edges
+    renderBoxplot(xScaleFor(data));
+    renderHist(bins.error ? null : xScaleFor([...data, bins.edges[0], bins.edges[bins.edges.length - 1]]), bins);
+  }
+
+  function syncBinControls() {
+    const fixed = $('fixedW').checked;
+    $('binWidth').disabled = !fixed;
+    $('bins').disabled = fixed;
+    $('binsAuto').disabled = fixed;
+  }
+
+  $('bins').addEventListener('input', () => { binsManual = true; renderCharts(); });
+  $('binsAuto').addEventListener('click', () => { binsManual = false; renderCharts(); });
+  $('fixedW').addEventListener('change', () => { syncBinControls(); renderCharts(); });
+  $('binWidth').addEventListener('input', renderCharts);
+
+  // ---------- Shapiro–Wilk ----------
+
+  function verdictHtml(good, text) {
+    return `<div class="verdict ${good ? 'good' : 'bad'}"><span class="icon" aria-hidden="true">${good ? '✓' : '!'}</span><span>${text}</span></div>`;
+  }
+
+  function runSW() {
+    const out = $('swOut');
+    try {
+      const r = Stats.shapiroWilk(data);
+      swResult = r;
+      out.innerHTML = `<div class="result">
+        <table class="stats">
+          <tr><td>W statistic</td><td>${r.w.toFixed(4)}</td></tr>
+          <tr><td>p-value</td><td>${fmtP(r.p)}</td></tr>
+          <tr><td>n</td><td>${r.n}</td></tr>
+        </table></div>`;
+      unlockTest();
+    } catch (e) {
+      swResult = null;
+      out.innerHTML = `<div class="result">${verdictHtml(false, esc(e.message))}</div>`;
+      lockTest();
+    }
+  }
+
+  function unlockTest() {
+    $('testFs').disabled = false;
+    $('lockMsg').style.display = 'none';
+    $('testOut').innerHTML = '';
+  }
+
+  function lockTest() {
+    $('testFs').disabled = true;
+    $('lockMsg').style.display = '';
+    document.querySelectorAll('input[name=method]').forEach(r => { r.checked = false; });
+    $('methodNote').innerHTML = '';
+    $('testOut').innerHTML = '';
+  }
+
+  document.querySelectorAll('input[name=method]').forEach(r => r.addEventListener('change', () => {
+    $('methodNote').innerHTML = '';
+    $('testOut').innerHTML = '';
+  }));
+
+  // ---------- Location test ----------
+  const altText = { 'two.sided': '≠', greater: '>', less: '<' };
+
+  function runTest() {
+    const out = $('testOut');
+    const method = document.querySelector('input[name=method]:checked')?.value;
+    const mu0 = Number($('mu0').value);
+    const alt = $('alt').value;
+    if (!method) {
+      out.innerHTML = `<div class="result">${verdictHtml(false, 'Choose a test method.')}</div>`;
+      return;
+    }
+    if (!Number.isFinite(mu0) || $('mu0').value.trim() === '') {
+      out.innerHTML = `<div class="result">${verdictHtml(false, 'Enter a numeric hypothesised value μ₀.')}</div>`;
+      return;
+    }
+    try {
+      if (method === 't') {
+        const r = Stats.tTest(data, mu0, alt, 0.05);
+        out.innerHTML = `<div class="result">
+          <div class="small secondary">One-sample t-test · H₀: μ = ${fmt(mu0)} · H₁: μ ${altText[alt]} ${fmt(mu0)}</div>
+          <table class="stats">
+            <tr><td>Sample mean</td><td>${fmt(r.mean)}</td></tr>
+            <tr><td>Standard error</td><td>${fmt(r.se)}</td></tr>
+            <tr><td>t statistic</td><td>${fmt(r.t)}</td></tr>
+            <tr><td>Degrees of freedom</td><td>${r.df}</td></tr>
+            <tr><td>p-value</td><td>${fmtP(r.p)}</td></tr>
+            <tr><td>95% confidence interval for μ</td><td>[${fmt(r.ci[0])}, ${fmt(r.ci[1])}]</td></tr>
+            <tr><td>Effect size (Cohen's d)</td><td>${fmt(r.cohenD, 3)}</td></tr>
+          </table></div>`;
+      } else {
+        const r = Stats.wilcoxon(data, mu0, alt);
+        const notes = [];
+        if (r.zeros) notes.push(`${r.zeros} value(s) equal to μ₀ were dropped`);
+        if (r.ties) notes.push('tied ranks present');
+        out.innerHTML = `<div class="result">
+          <div class="small secondary">Wilcoxon signed-rank test · H₀: median = ${fmt(mu0)} · H₁: median ${altText[alt]} ${fmt(mu0)}</div>
+          <table class="stats">
+            <tr><td>Sample median</td><td>${fmt(r.median)}</td></tr>
+            <tr><td>Hodges–Lehmann estimate (pseudo-median)</td><td>${fmt(r.hl)}</td></tr>
+            <tr><td>V = W⁺ (sum of positive ranks)</td><td>${fmt(r.V, r.V % 1 ? 1 : 0)}</td></tr>
+            <tr><td>W⁻ (sum of negative ranks)</td><td>${fmt(r.Vminus, r.Vminus % 1 ? 1 : 0)}</td></tr>
+            <tr><td>n used (non-zero differences)</td><td>${r.n}</td></tr>
+            ${r.z !== null ? `<tr><td>z (continuity-corrected)</td><td>${fmt(r.z)}</td></tr>` : ''}
+            <tr><td>p-value</td><td>${fmtP(r.p)}</td></tr>
+            <tr><td>Method</td><td>${r.method}</td></tr>
+            <tr><td>Effect size (r = |z| / √n)</td><td>${fmt(r.r, 3)}</td></tr>
+          </table>
+          ${notes.length ? `<p class="small muted" style="margin:8px 0 0">Note: ${notes.join('; ')} — exact p-value not available, normal approximation used.</p>` : ''}
+          </div>`;
+      }
+    } catch (e) {
+      out.innerHTML = `<div class="result">${verdictHtml(false, esc(e.message))}</div>`;
+    }
+  }
+
+  // ---------- Wiring ----------
+  function onDataChange() {
+    renderChips();
+    renderSummary();
+    renderCharts();
+    // Any change to the data invalidates earlier test results.
+    swResult = null;
+    $('swOut').innerHTML = '';
+    $('swBtn').disabled = data.length < 3;
+    lockTest();
+  }
+
+  $('addBtn').addEventListener('click', addFromEntry);
+  $('entry').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addFromEntry(); } });
+  $('entry').addEventListener('paste', () => setTimeout(() => {
+    // Multi-value paste is added straight away
+    if (/[\s,;]/.test($('entry').value.trim())) addFromEntry();
+  }));
+  $('resetBtn').addEventListener('click', reset);
+  $('exNormal').addEventListener('click', () => loadData(EX_SYMMETRIC, 'symmetric example'));
+  $('exSkew').addEventListener('click', () => loadData(EX_SKEWED, 'skewed example'));
+  $('swBtn').addEventListener('click', runSW);
+  $('testBtn').addEventListener('click', runTest);
+  $('mu0').addEventListener('input', () => { $('testOut').innerHTML = ''; });
+  $('alt').addEventListener('change', () => { $('testOut').innerHTML = ''; });
+
+  syncBinControls();
+  onDataChange();
+})();
+</script>
+</body>
+</html>
